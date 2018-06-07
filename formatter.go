@@ -65,15 +65,26 @@ func (s *sorter) Less(i, j int) bool {
 // Formatter should not be instantiated directly as it doesn't have any values set.
 // Prefer to use `DefaultFormatter` or `New()` if you need to make changes to it.
 type Formatter struct {
-	LevelLetters   int
-	LevelUpper     bool
-	LevelLower     bool
-	CompactFull    bool
-	CompactSimple  bool
-	MessageAfter   bool
+	// LevelLetters denotes the number of letters to show for the level (from 1 to 5).
+	LevelLetters int
+	// LevelUpper sets whether to UPPERCASE the level text.
+	LevelUpper bool
+	// LevelLower sets whether to lowercase the level text.
+	LevelLower bool
+	// CompactFull makes all json structures take a single line.
+	CompactFull bool
+	// CompactSimple causes any short json structures to be compact, but larger ones will still be block indented.
+	CompactSimple bool
+	// MessageAfter places the message text on a new line after any data.
+	MessageAfter bool
+	// CompactMessage allows short messages without any data lines to be placed on the log line
 	CompactMessage bool
-	Paragraphed    bool
-	Ordering       map[string]int
+	// ParagraphAll adds a newline after any log line.
+	ParagraphAll bool
+	// ParagraphBlock adds a newline after any log line block (multi-line log messages)
+	ParagraphBlock bool
+	// Ordering provides a priority order for data keys (higher numbers appear earlier, < 0 come after unprioritised)
+	Ordering map[string]int
 
 	isTerminal bool
 	jsonFmt    *prettyjson.Formatter
@@ -92,7 +103,6 @@ func New() *Formatter {
 		CompactSimple:  true,
 		MessageAfter:   true,
 		CompactMessage: true,
-		Paragraphed:    true,
 	}
 }
 
@@ -298,9 +308,10 @@ func (f *Formatter) Format(entry *logrus.Entry) ([]byte, error) {
 
 	if !cuddleMessage {
 		fmt.Fprintf(b, "  %s\n", entry.Message)
-	}
-
-	if f.Paragraphed {
+		if f.ParagraphAll || f.ParagraphBlock {
+			b.Write(bNewline)
+		}
+	} else if f.ParagraphAll {
 		b.Write(bNewline)
 	}
 

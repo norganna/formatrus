@@ -35,6 +35,33 @@ func braketise(s string) string {
 	return fmt.Sprintf("[%s]", s)
 }
 
+type sorter struct {
+	order map[string]int
+	keys  []string
+}
+
+func (s *sorter) Len() int {
+	return len(s.keys)
+}
+
+func (s *sorter) Swap(i, j int) {
+	s.keys[i], s.keys[j] = s.keys[j], s.keys[i]
+}
+
+func (s *sorter) Less(i, j int) bool {
+	a := s.keys[i]
+	b := s.keys[j]
+	ai := s.order[a]
+	bi := s.order[b]
+	if ai < bi {
+		return false
+	}
+	if ai > bi {
+		return true
+	}
+	return strings.Compare(a, b) < 1
+}
+
 // Formatter should not be instantiated directly as it doesn't have any values set.
 // Prefer to use `DefaultFormatter` or `New()` if you need to make changes to it.
 type Formatter struct {
@@ -43,6 +70,7 @@ type Formatter struct {
 	LevelLower    bool
 	CompactFull   bool
 	CompactSimple bool
+	Ordering      map[string]int
 
 	isTerminal bool
 	jsonFmt    *prettyjson.Formatter
@@ -65,6 +93,19 @@ func New() *Formatter {
 var reCompact = regexp.MustCompile(`\s*\n\s*`)
 var bSpace = []byte{' '}
 var bNewline = []byte{'\n'}
+
+// Order adds a priority to a given list of keys (chainable call).
+func (f *Formatter) Order(priority int, keys ...string) *Formatter {
+	if f.Ordering == nil {
+		f.Ordering = map[string]int{}
+	}
+
+	for _, key := range keys {
+		f.Ordering[key] = priority
+	}
+
+	return f
+}
 
 // Format takes a logrus Entry and renders it into a byte slice.
 func (f *Formatter) Format(entry *logrus.Entry) ([]byte, error) {
@@ -136,7 +177,17 @@ func (f *Formatter) Format(entry *logrus.Entry) ([]byte, error) {
 			keySize = n
 		}
 	}
-	sort.Strings(keys)
+
+	if f.Ordering == nil {
+		sort.Strings(keys)
+	} else {
+		s := &sorter{
+			order: f.Ordering,
+			keys:  keys,
+		}
+		sort.Sort(s)
+	}
+
 	if keySize > 20 {
 		keySize = 20
 	}

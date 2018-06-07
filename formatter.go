@@ -65,12 +65,15 @@ func (s *sorter) Less(i, j int) bool {
 // Formatter should not be instantiated directly as it doesn't have any values set.
 // Prefer to use `DefaultFormatter` or `New()` if you need to make changes to it.
 type Formatter struct {
-	LevelLetters  int
-	LevelUpper    bool
-	LevelLower    bool
-	CompactFull   bool
-	CompactSimple bool
-	Ordering      map[string]int
+	LevelLetters   int
+	LevelUpper     bool
+	LevelLower     bool
+	CompactFull    bool
+	CompactSimple  bool
+	MessageAfter   bool
+	CompactMessage bool
+	Paragraphed    bool
+	Ordering       map[string]int
 
 	isTerminal bool
 	jsonFmt    *prettyjson.Formatter
@@ -84,9 +87,12 @@ var DefaultFormatter = New()
 // New will allow you to create a new formatter with reasonable defaults to customise.
 func New() *Formatter {
 	return &Formatter{
-		LevelLetters:  3,
-		LevelUpper:    true,
-		CompactSimple: true,
+		LevelLetters:   3,
+		LevelUpper:     true,
+		CompactSimple:  true,
+		MessageAfter:   true,
+		CompactMessage: true,
+		Paragraphed:    true,
 	}
 }
 
@@ -169,29 +175,6 @@ func (f *Formatter) Format(entry *logrus.Entry) ([]byte, error) {
 		b = &bytes.Buffer{}
 	}
 
-	keySize := 5
-	keys := make([]string, 0, len(entry.Data))
-	for k := range entry.Data {
-		keys = append(keys, k)
-		if n := len(k); n > keySize {
-			keySize = n
-		}
-	}
-
-	if f.Ordering == nil {
-		sort.Strings(keys)
-	} else {
-		s := &sorter{
-			order: f.Ordering,
-			keys:  keys,
-		}
-		sort.Sort(s)
-	}
-
-	if keySize > 20 {
-		keySize = 20
-	}
-
 	if f.LevelLetters <= 0 {
 		f.LevelLetters = 3
 	}
@@ -240,18 +223,50 @@ func (f *Formatter) Format(entry *logrus.Entry) ([]byte, error) {
 		prefix += " "
 	}
 
-	fmt.Fprintf(b, "%s %s %s%s",
+	fmt.Fprintf(b, "%s %s",
 		timeColour(entry.Time.Format("Jan 02 15:04:05.000")),
 		levelColour(levelText),
-		prefix,
-		entry.Message,
 	)
 
-	padding := []byte(fmt.Sprintf("\n%s", string(bytes.Repeat([]byte{' '}, keySize+4))))
-	for _, key := range keys {
+	if prefix != "" {
+		fmt.Fprintf(b, " %s", prefix)
+	}
+
+	keySize := 5
+	keys := make([]string, 0, len(entry.Data))
+	for key := range entry.Data {
 		if (key == "prefix" || key == "rpc" || key == "user") && prefix != "" {
 			continue
 		}
+		keys = append(keys, key)
+		if n := len(key); n > keySize {
+			keySize = n
+		}
+	}
+
+	if f.Ordering == nil {
+		sort.Strings(keys)
+	} else {
+		s := &sorter{
+			order: f.Ordering,
+			keys:  keys,
+		}
+		sort.Sort(s)
+	}
+
+	if keySize > 20 {
+		keySize = 20
+	}
+
+	// We can cuddle if we haven't been told to put the message after, or if we've been told we can cuddle, and there's
+	// no keys to print and the message isn't overly long.
+	cuddleMessage := !f.MessageAfter || (f.CompactMessage && len(keys) == 0 && len(entry.Message) < 100)
+	if cuddleMessage {
+		fmt.Fprint(b, entry.Message)
+	}
+
+	padding := []byte(fmt.Sprintf("\n%s", string(bytes.Repeat([]byte{' '}, keySize+4))))
+	for _, key := range keys {
 		value := entry.Data[key]
 		data, err := json.Marshal(value)
 		if err == nil && f.isTerminal {
@@ -280,6 +295,14 @@ func (f *Formatter) Format(entry *logrus.Entry) ([]byte, error) {
 		}
 	}
 	b.Write(bNewline)
+
+	if !cuddleMessage {
+		fmt.Fprintf(b, "  %s\n", entry.Message)
+	}
+
+	if f.Paragraphed {
+		b.Write(bNewline)
+	}
 
 	return b.Bytes(), nil
 }

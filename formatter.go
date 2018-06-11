@@ -37,6 +37,7 @@ func braketise(s string) string {
 
 type sorter struct {
 	order map[string]int
+	pri   map[string]int
 	keys  []string
 }
 
@@ -51,13 +52,25 @@ func (s *sorter) Swap(i, j int) {
 func (s *sorter) Less(i, j int) bool {
 	a := s.keys[i]
 	b := s.keys[j]
-	ai := s.order[a]
-	bi := s.order[b]
-	if ai < bi {
-		return false
+	if s.order != nil {
+		ai := s.order[a]
+		bi := s.order[b]
+		if ai < bi {
+			return false
+		}
+		if ai > bi {
+			return true
+		}
 	}
-	if ai > bi {
-		return true
+	if s.pri != nil {
+		ap := s.pri[a]
+		bp := s.pri[b]
+		if ap > bp {
+			return false
+		}
+		if ap < bp {
+			return true
+		}
 	}
 	return strings.Compare(a, b) < 1
 }
@@ -242,9 +255,15 @@ func (f *Formatter) Format(entry *logrus.Entry) ([]byte, error) {
 		fmt.Fprintf(b, " %s", prefix)
 	}
 
+	var orders []string
+
 	keySize := 5
 	keys := make([]string, 0, len(entry.Data))
-	for key := range entry.Data {
+	for key, v := range entry.Data {
+		if key == "_order" {
+			orders = v.([]string)
+			continue
+		}
 		if (key == "prefix" || key == "rpc" || key == "user") && prefix != "" {
 			continue
 		}
@@ -254,12 +273,21 @@ func (f *Formatter) Format(entry *logrus.Entry) ([]byte, error) {
 		}
 	}
 
-	if f.Ordering == nil {
+	if f.Ordering == nil && len(orders) == 0 {
 		sort.Strings(keys)
 	} else {
+		var pri map[string]int
+		if len(orders) > 0 {
+			pri = map[string]int{}
+			for i, k := range orders {
+				pri[k] = i
+			}
+		}
+
 		s := &sorter{
 			order: f.Ordering,
 			keys:  keys,
+			pri:   pri,
 		}
 		sort.Sort(s)
 	}

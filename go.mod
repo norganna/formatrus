@@ -6,7 +6,8 @@ require (
 	github.com/mattn/go-colorable v0.0.9
 	github.com/mattn/go-isatty v0.0.3
 	github.com/mgutz/ansi v0.0.0-20170206155736-9520e82c474b
+	github.com/norganna/depict v1.0.2
 	github.com/sirupsen/logrus v1.0.5
-	golang.org/x/crypto v0.0.0-20180606015541-b47b15873692
-	golang.org/x/sys v0.0.0-20180606202747-9527bec2660b
+	golang.org/x/crypto v0.0.0-20180608092829-8ac0e0d97ce4
+	golang.org/x/sys v0.0.0-20180612142214-a9e25c09b96b
 )

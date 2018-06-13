@@ -308,7 +308,7 @@ func (f *Formatter) Format(entry *logrus.Entry) ([]byte, error) {
 	for _, key := range keys {
 		value := entry.Data[key]
 
-		data, err := json.Marshal(depict.Interpret(value))
+		data, err := json.Marshal(depict.Portray(value))
 
 		if err == nil && len(data) == 2 && data[0] == '{' {
 			if v, ok := value.(error); ok {

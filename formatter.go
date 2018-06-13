@@ -12,6 +12,7 @@ import (
 
 	"github.com/hokaccha/go-prettyjson"
 	"github.com/mgutz/ansi"
+	"github.com/norganna/depict"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh/terminal"
 )
@@ -306,13 +307,23 @@ func (f *Formatter) Format(entry *logrus.Entry) ([]byte, error) {
 	padding := []byte(fmt.Sprintf("\n%s", string(bytes.Repeat([]byte{' '}, keySize+4))))
 	for _, key := range keys {
 		value := entry.Data[key]
-		if v, ok := value.(error); ok {
-			value = v.Error()
-		} else if v, ok := value.(fmt.Stringer); ok {
-			value = v.String()
+
+		data, err := json.Marshal(depict.Interpret(value))
+
+		if err == nil && len(data) == 2 && data[0] == '{' {
+			if v, ok := value.(error); ok {
+				str := v.Error()
+				if len(str) > 0 {
+					data, err = json.Marshal(str)
+				}
+			} else if v, ok := value.(fmt.Stringer); ok {
+				str := v.String()
+				if len(str) > 0 {
+					data, err = json.Marshal(str)
+				}
+			}
 		}
 
-		data, err := json.Marshal(value)
 		if err == nil && f.isTerminal {
 			if pretty, pErr := f.jsonFmt.Format(data); pErr == nil {
 				data = pretty
